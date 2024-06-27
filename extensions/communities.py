@@ -5,7 +5,7 @@ Written by: Trent Buckley (BoredManPlays)
 """
 from interactions import slash_command, SlashContext, Embed, Extension, Client, ActionRow, Button, ButtonStyle, Color
 
-print("Status extension loaded")
+print("Communities extension loaded")
 
 class Communities(Extension):
     def __init__(self, client: Client) -> None:

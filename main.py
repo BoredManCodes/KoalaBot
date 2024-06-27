@@ -16,7 +16,7 @@ TOKEN = dotenv.get_key(".env", "TOKEN")
 
 
 # Set up the logging
-logging.basicConfig(filename="bot.log", level=logging.INFO)
+logging.basicConfig(filename="bot.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Set up the bot
 bot = Client(intents=Intents.ALL)
@@ -51,6 +51,10 @@ async def botinfo(ctx: InteractionContext):
 
 bot.load_extension("extensions.punishments")
 bot.load_extension("extensions.status")
-bot.load_extension("extensions.communities")
+bot.load_extension("extensions.fun")
+bot.load_extension("extensions.interviews")
+bot.load_extension("extensions.suggestions")
+bot.load_extension("extensions.tickets")
+# bot.load_extension("extensions.role_selections")
 print("Starting bot...")
-bot.start("TOKEN")
+bot.start(TOKEN)

@@ -135,7 +135,8 @@ class Interviews(Extension):
         answers = []
         # Check if the user has already started an application
         cur.execute(
-            "SELECT * FROM interview_channels WHERE user = ? AND status = 'started'", (response.ctx.author.id,)
+            "SELECT * FROM interview_channels WHERE user = ? AND status = 'started'",
+            (response.ctx.author.id,),
         )
         result = cur.fetchone()
         if result:
@@ -223,7 +224,10 @@ class Interviews(Extension):
             except BaseException as e:
                 await channel.send("You took too long to respond, please try again.")
                 # Save this to the database
-                cur.execute("UPDATE interview_channels SET status = 'timed_out' WHERE user = ?", (response.ctx.author.id,))
+                cur.execute(
+                    "UPDATE interview_channels SET status = 'timed_out' WHERE user = ?",
+                    (response.ctx.author.id,),
+                )
                 con.commit()
                 print(e)
         # Send the embed to modlog to keep a record of the application
@@ -253,12 +257,18 @@ class Interviews(Extension):
             components=components,
         )
         # Update the interview channel status to submitted
-        cur.execute("UPDATE interview_channels SET status = 'submitted' WHERE user = ?", (response.ctx.author.id,))
+        cur.execute(
+            "UPDATE interview_channels SET status = 'submitted' WHERE user = ?",
+            (response.ctx.author.id,),
+        )
         con.commit()
         mod_log = self.client.get_channel(mod_log_channel)
         message = await mod_log.send(embed=embed)
         # Save the message id to the database
-        cur.execute("INSERT INTO interview_mod_log_embeds (user, channel, message) VALUES (?, ?, ?)", (response.ctx.author.id, channel.id, message.id))
+        cur.execute(
+            "INSERT INTO interview_mod_log_embeds (user, channel, message) VALUES (?, ?, ?)",
+            (response.ctx.author.id, channel.id, message.id),
+        )
         con.commit()
         # Add the Application Reviewers to the channel
         await channel.edit_permission(
@@ -274,7 +284,10 @@ class Interviews(Extension):
             f"{response.ctx.author.username}-review", category=applications_category
         )
         # Save the channel to the database
-        cur.execute("UPDATE interview_channels SET review_channel = ? WHERE user = ? AND status = 'submitted'", (reviewer_channel.id, response.ctx.author.id))
+        cur.execute(
+            "UPDATE interview_channels SET review_channel = ? WHERE user = ? AND status = 'submitted'",
+            (reviewer_channel.id, response.ctx.author.id),
+        )
         con.commit()
         await reviewer_channel.edit_permission(
             PermissionOverwrite(
@@ -349,7 +362,10 @@ class Interviews(Extension):
                 f"{user.mention} has been accepted into Prism by <@{response.ctx.author.id}>!\nPlease read <#861317568807829535>."
             )
             # Update the database to show that the user has been accepted
-            cur.execute("UPDATE interview_channels SET status = 'accepted' WHERE user = ? AND status = 'submitted' AND interview_channel = ?", (user.id, response.ctx.channel.id))
+            cur.execute(
+                "UPDATE interview_channels SET status = 'accepted' WHERE user = ? AND status = 'submitted' AND interview_channel = ?",
+                (user.id, response.ctx.channel.id),
+            )
             con.commit()
             await user.add_role(response.ctx.guild.get_role(new_member_role))
             await user.remove_role(
@@ -360,7 +376,10 @@ class Interviews(Extension):
             )
             # Fetch the user's modlog message and edit it to show that the user has been accepted
             mod_log = self.client.get_channel(mod_log_channel)
-            cur.execute("SELECT message FROM interview_mod_log_embeds WHERE user = ? AND channel = ?", (user.id, response.ctx.channel.id))
+            cur.execute(
+                "SELECT message FROM interview_mod_log_embeds WHERE user = ? AND channel = ?",
+                (user.id, response.ctx.channel.id),
+            )
             message_id = cur.fetchone()
             # Fetch the message by the id
             async for message in mod_log.history(limit=100):
@@ -382,15 +401,20 @@ class Interviews(Extension):
                 f"{user.mention} has been denied from Prism by <@{response.ctx.author.id}>."
             )
             # Save this to the database
-            cur.execute("UPDATE interview_channels SET status = 'denied' WHERE user = ? AND status = 'submitted' AND interview_channel = ?", (user.id, response.ctx.channel.id))
+            cur.execute(
+                "UPDATE interview_channels SET status = 'denied' WHERE user = ? AND status = 'submitted' AND interview_channel = ?",
+                (user.id, response.ctx.channel.id),
+            )
             con.commit()
             await user.send(
                 f"Unfortunately, your application to Prism SMP has been denied. Thank you for applying and best of luck in your future endeavors."
             )
             # Fetch the user's modlog message and edit it to show that the user has been accepted
             mod_log = self.client.get_channel(mod_log_channel)
-            cur.execute("SELECT message FROM interview_mod_log_embeds WHERE user = ? AND channel = ?",
-                        (user.id, response.ctx.channel.id))
+            cur.execute(
+                "SELECT message FROM interview_mod_log_embeds WHERE user = ? AND channel = ?",
+                (user.id, response.ctx.channel.id),
+            )
             message_id = cur.fetchone()
             # Fetch the message by the id
             async for message in mod_log.history(limit=100):
@@ -412,13 +436,19 @@ class Interviews(Extension):
                 await ctx.send("You do not have permission to close applications.")
                 return
             # Fetch the user's application channel
-            cur.execute("SELECT interview_channel FROM interview_channels WHERE user = ?", (ctx.target_user.id,))
+            cur.execute(
+                "SELECT interview_channel FROM interview_channels WHERE user = ?",
+                (ctx.target_user.id,),
+            )
             channel_id = cur.fetchone()
             channel = ctx.guild.get_channel(channel_id[0])
             # Delete the channel
             await channel.delete()
             # Fetch the user's review channel
-            cur.execute("SELECT review_channel FROM interview_channels WHERE user = ?", (ctx.target_user.id,))
+            cur.execute(
+                "SELECT review_channel FROM interview_channels WHERE user = ?",
+                (ctx.target_user.id,),
+            )
             channel_id = cur.fetchone()
             channel = ctx.guild.get_channel(channel_id[0])
             # Delete the channel
@@ -432,7 +462,10 @@ class Interviews(Extension):
     # If the member leaves, delete their application channels
     @listen()
     async def on_member_remove(self, event: MemberRemove):
-        cur.execute("SELECT interview_channel, review_channel FROM interview_channels WHERE user = ?", (event.member.id,))
+        cur.execute(
+            "SELECT interview_channel, review_channel FROM interview_channels WHERE user = ?",
+            (event.member.id,),
+        )
         channels = cur.fetchone()
         if channels:
             channel = event.guild.get_channel(channels[0])
@@ -442,6 +475,44 @@ class Interviews(Extension):
         cur.execute("DELETE FROM interview_channels WHERE user = ?", (event.member.id,))
         con.commit()
 
+    # A command to fetch the user's application from the database and redisplay it
+    @slash_command(
+        name="recall_application",
+        description="Recall a application.",
+        scopes=[858547359804555264],
+        options=[
+            {
+                "name": "user",
+                "description": "The user to recall the application for.",
+                "type": 3,
+                "required": True,
+            }
+        ],
+    )
+    async def recall_application(self, ctx: SlashContext, user: str):
+        try:
+            if staff_role not in ctx.author.roles:
+                await ctx.send("You do not have permission to recall applications.")
+                return
+            # Extract just the user id from the mention
+            user = user[3:-1]
+
+            cur.execute(
+                "SELECT * FROM answers WHERE user = ?",
+                (user,),
+            )
+            answers = cur.fetchone()
+            embed = Embed(
+                title="Prism Application",
+                description=f"{user} | Application",
+                color="#00aaff",
+            )
+            for i, question in enumerate(questions):
+                embed.add_field(name=question, value=answers[i + 1], inline=False)
+            await ctx.send(embed=embed)
+        except BaseException as e:
+            print(e)
+            await ctx.send("An error occurred while trying to recall the application.")
 
 
 

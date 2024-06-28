@@ -185,13 +185,78 @@ class Suggestions(Extension):
                 await response.ctx.send("You can't delete a suggestion you didn't create!", ephemeral=True)
 
     # An admin command to view all suggestions, paginated
-    @slash_command(name="suggestions", description="View all suggestions", scopes=[858547359804555264])
-    async def suggestions(self, ctx: SlashContext):
+    @slash_command(name="suggestions", description="View all suggestions", scopes=[858547359804555264], options=[
+       {
+            "name": "suggestion_number",
+            "description": "The number of the suggestion you want to view",
+            "type": 4,
+            "required": False
+        },
+        {
+            "name": "ephemeral",
+            "description": "Whether to send the response as an ephemeral message. Defaults to false.",
+            "type": 5,
+            "required": False
+        }
+    ])
+    async def suggestions(self, ctx: SlashContext, suggestion_number: int = None, ephemeral: bool = False):
         # Check if the user is an admin
         # Check if the user who clicked the button is the user who created the suggestion or an admin
         staff_role = ctx.guild.get_role(self.staff_role)
         if staff_role not in ctx.author.roles:
             await ctx.send("You don't have permission to use this command!", ephemeral=True)
+            return
+        if suggestion_number:
+            # Get the suggestion with the given number
+            cur.execute("SELECT * FROM suggestions WHERE suggestion_number = ?", (suggestion_number,))
+            suggestion = cur.fetchone()
+            if not suggestion:
+                await ctx.send("That suggestion number doesn't exist!", ephemeral=True)
+                return
+            # Get the user who created the suggestion
+            suggestee = ctx.guild.get_member(suggestion[0])
+            # Get the number of upvotes and downvotes
+            upvotes = 0
+            downvotes = 0
+            upvoters = []
+            downvoters = []
+            cur.execute("SELECT * FROM votes WHERE message_id = ?", (suggestion[3],))
+            votes = cur.fetchall()
+            for vote in votes:
+                if vote[0] == suggestion[3]:
+                    if vote[2] == "upvote":
+                        upvotes += 1
+                        upvoters.append(ctx.guild.get_member(vote[1]).nickname if ctx.guild.get_member(vote[1]).nickname else ctx.guild.get_member(vote[1]).display_name)
+                    elif vote[2] == "downvote":
+                        downvotes += 1
+                        downvoters.append(ctx.guild.get_member(vote[1]).nickname if ctx.guild.get_member(vote[1]).nickname else ctx.guild.get_member(vote[1]).display_name)
+            # Create an embed for the suggestion
+            embed = Embed(
+                title=f"Suggestion #{suggestion[4]}",
+                description=suggestion[1],
+                color=Color.from_hex("#00aaff"),
+            )
+            embed.set_author(
+                name=suggestee.display_name,
+                icon_url=suggestee.avatar_url,
+            )
+            upvoters = "\n".join(upvoters)
+            downvoters = "\n".join(downvoters)
+            upvote_title = "Upvote" if upvotes == 1 else "Upvotes"
+            downvote_title = "Downvote" if downvotes == 1 else "Downvotes"
+            embed.add_field(name=f"{upvotes} {upvote_title}", value=upvoters if upvoters else "No upvotes")
+            embed.add_field(name=f"{downvotes} {downvote_title}", value=downvoters if downvoters else "No downvotes")
+            if suggestion[2] == "pending":
+                embed.add_field(name="Status", value="🟡 Pending")
+            elif suggestion[2] == "declined":
+                embed.add_field(name="Status", value="🔴 Declined")
+            elif suggestion[2] == "accepted":
+                embed.add_field(name="Status", value="🟢 Accepted")
+            elif suggestion[2] == "review":
+                embed.add_field(name="Status", value="🗨️ Under Review")
+            elif suggestion[2] == "implemented":
+                embed.add_field(name="Status", value="✅ Implemented")
+            await ctx.send(embed=embed, ephemeral=ephemeral)
             return
         # Get all suggestions and votes from the database
         cur.execute("SELECT * FROM suggestions")
@@ -239,12 +304,14 @@ class Suggestions(Extension):
                 embed.add_field(name="Status", value="🔴 Declined")
             elif suggestion[2] == "accepted":
                 embed.add_field(name="Status", value="🟢 Accepted")
+            elif suggestion[2] == "review":
+                embed.add_field(name="Status", value="🗨️ Under Review")
             elif suggestion[2] == "implemented":
                 embed.add_field(name="Status", value="✅ Implemented")
             embeds.append(embed)
 
         paginator = Paginator.create_from_embeds(self.client, *embeds, timeout=120)
-        await paginator.send(ctx)
+        await paginator.send(ctx, ephemeral=ephemeral)
 
     # Listen for the staff reactions on a suggestion
     @listen()
@@ -347,6 +414,22 @@ class Suggestions(Extension):
                         # Send a message to the suggestee that their suggestion has been accepted
                         suggestee = event.message.guild.get_member(suggestion[0])
                         await suggestee.send(f"Your [suggestion](https://discord.com/channels/858547359804555264/863262093737197568/{suggestion[3]}) has been accepted in {event.message.guild.name}")
+                    elif event.emoji.name == "🗨️":
+                        cur.execute("UPDATE suggestions SET status = 'review' WHERE message_id = ?", (event.message.id,))
+                        con.commit()
+                        await event.message.remove_reaction(event.emoji, event.author)
+                        # Edit the suggestion to show the new status
+                        await event.message.edit(embed=Embed(
+                            title=event.message.embeds[0].title,
+                            description=event.message.embeds[0].description,
+                            color=Color.from_hex("#FF00FF")  # purple,
+                        ).set_author(
+                            name=event.message.embeds[0].author.name,
+                            icon_url=event.message.embeds[0].author.icon_url,
+                        ).set_footer(text="Status: 🗨️ Under Review"))
+                        # Send a message to the suggestee that their suggestion is under review
+                        suggestee = event.message.guild.get_member(suggestion[0])
+                        await suggestee.send(f"Your [suggestion](https://discord.com/channels/858547359804555264/863262093737197568/{suggestion[3]}) is under review by staff in {event.message.guild.name}")
                     elif event.emoji.name == "✅":
                         cur.execute("UPDATE suggestions SET status = 'implemented' WHERE message_id = ?", (event.message.id,))
                         con.commit()
@@ -365,6 +448,7 @@ class Suggestions(Extension):
                         await suggestee.send(f"Your [suggestion](https://discord.com/channels/858547359804555264/863262093737197568/{suggestion[3]}) has been implemented in {event.message.guild.name}")
                 else:
                     return
+
 
 
 def setup(client):
